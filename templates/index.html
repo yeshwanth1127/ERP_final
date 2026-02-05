@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schema Vector Database - Query Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Schema Vector Database</h1>
+            <p class="subtitle">Upload your database schema files and query them using natural language</p>
+        </header>
+
+        <main>
+            <!-- Sequential Workflow Section -->
+            <section class="card workflow-section">
+                <h2>🚀 Complete Workflow (Sequential)</h2>
+                <p class="section-description">Run all three steps in sequence: Upload files → Query schema → Generate SQL. All steps will execute automatically one after another.</p>
+                
+                <form id="workflowForm" enctype="multipart/form-data">
+                    <div class="workflow-step">
+                        <h3>Step 1: Upload Schema Files</h3>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="workflowFileInput" name="files[]" multiple accept=".sql,.txt,.md,.json,.csv">
+                            <label for="workflowFileInput" class="file-label">
+                                <span class="file-label-text">Choose files or drag and drop</span>
+                                <span class="file-label-button">Browse</span>
+                            </label>
+                        </div>
+                        <div id="workflowFileList" class="file-list"></div>
+                    </div>
+
+                    <div class="workflow-step">
+                        <h3>Step 2: Query Schema</h3>
+                        <div class="input-group">
+                            <textarea 
+                                id="workflowQueryInput" 
+                                name="query" 
+                                placeholder="e.g., What tables are related to sales? Show me the product schema."
+                                rows="3"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="workflow-step">
+                        <h3>Step 3: Generate SQL</h3>
+                        <div class="input-group">
+                            <textarea 
+                                id="workflowNL2SQLInput" 
+                                name="nl2sql_query" 
+                                placeholder="e.g., Show me the total sales amount for today. Count active products."
+                                rows="3"
+                            ></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label for="workflowSchemaHint">Schema Hint (Optional):</label>
+                            <input 
+                                type="text" 
+                                id="workflowSchemaHint" 
+                                name="schema_hint" 
+                                placeholder="e.g., schema: retail_erp, main tables: sales, products"
+                            >
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-workflow" id="workflowBtn">
+                        <span class="btn-text">🚀 Run Complete Workflow</span>
+                        <span class="btn-loader" style="display: none;">⏳ Processing...</span>
+                    </button>
+                </form>
+                <div id="workflowResult" class="result-message"></div>
+                <div id="workflowProgress" class="workflow-progress"></div>
+            </section>
+
+            <!-- Upload Section -->
+            <section class="card upload-section">
+                <h2>📁 Upload Schema Files</h2>
+                <p class="section-description">Upload your database schema files (SQL, text, or any format). They will be processed and stored in the vector database.</p>
+                
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="fileInput" name="files[]" multiple accept=".sql,.txt,.md,.json,.csv">
+                        <label for="fileInput" class="file-label">
+                            <span class="file-label-text">Choose files or drag and drop</span>
+                            <span class="file-label-button">Browse</span>
+                        </label>
+                    </div>
+                    <div id="fileList" class="file-list"></div>
+                    <button type="submit" class="btn btn-primary" id="uploadBtn">
+                        <span class="btn-text">Upload to Vector Database</span>
+                        <span class="btn-loader" style="display: none;">⏳ Uploading...</span>
+                    </button>
+                </form>
+                <div id="uploadResult" class="result-message"></div>
+            </section>
+
+            <!-- Query Section -->
+            <section class="card query-section">
+                <h2>🔍 Query Schema</h2>
+                <p class="section-description">Ask questions about your database schema in natural language. The system will search the vector database for relevant schema information.</p>
+                
+                <form id="queryForm">
+                    <div class="input-group">
+                        <textarea 
+                            id="queryInput" 
+                            name="query" 
+                            placeholder="e.g., What tables are related to sales? Show me the product schema. What columns does the users table have?"
+                            rows="4"
+                            required
+                        ></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="queryBtn">
+                        <span class="btn-text">Search Schema</span>
+                        <span class="btn-loader" style="display: none;">🔍 Searching...</span>
+                    </button>
+                </form>
+                <div id="queryResult" class="result-message"></div>
+            </section>
+
+            <!-- NL2SQL Section -->
+            <section class="card nl2sql-section">
+                <h2>🤖 Natural Language to SQL</h2>
+                <p class="section-description">Ask questions in natural language and get SQL queries generated automatically based on your schema.</p>
+                
+                <form id="nl2sqlForm">
+                    <div class="input-group">
+                        <textarea 
+                            id="nl2sqlInput" 
+                            name="query" 
+                            placeholder="e.g., Show me the total sales amount for today. Count the total number of active products. Calculate weekly growth percentage."
+                            rows="4"
+                            required
+                        ></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="schemaHint">Schema Hint (Optional):</label>
+                        <input 
+                            type="text" 
+                            id="schemaHint" 
+                            name="schema_hint" 
+                            placeholder="e.g., schema: retail_erp, main tables: sales, products"
+                        >
+                    </div>
+                    <button type="submit" class="btn btn-secondary" id="nl2sqlBtn">
+                        <span class="btn-text">Generate SQL</span>
+                        <span class="btn-loader" style="display: none;">🤖 Generating...</span>
+                    </button>
+                </form>
+                <div id="nl2sqlResult" class="result-message"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Schema Vector Database Query Interface</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+
