@@ -1,9 +1,74 @@
+// Tabs: left panel
+document.querySelectorAll('.tab').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var tabId = this.getAttribute('data-tab');
+        document.querySelectorAll('.tab').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
+        this.classList.add('active');
+        var pane = document.getElementById(tabId);
+        if (pane) pane.classList.add('active');
+    });
+});
+
+// Documents: list and select
+const documentList = document.getElementById('documentList');
+const documentSelect = document.getElementById('documentSelect');
+
+function getSelectedDocumentId() {
+    const sel = document.getElementById('documentSelect');
+    return sel && sel.value ? sel.value : null;
+}
+
+async function loadDocuments() {
+    const workflowDocSelect = document.getElementById('workflowDocumentSelect');
+    try {
+        const res = await fetch('/api/documents');
+        const data = await res.json();
+        const docs = data.documents || [];
+        var optHtml = '<option value="">— None —</option>';
+        docs.forEach(function(d) {
+            optHtml += '<option value="' + escapeHtml(d.id) + '">' + escapeHtml(d.name) + ' (' + (d.created_at || '').slice(0, 19) + ')</option>';
+        });
+        if (documentSelect) {
+            documentSelect.innerHTML = optHtml;
+        }
+        if (workflowDocSelect) {
+            workflowDocSelect.innerHTML = optHtml;
+        }
+        documentList.innerHTML = '';
+        if (docs.length === 0) {
+            documentList.innerHTML = '<p class="document-list-empty">No documents yet. Use the Upload tab to add files.</p>';
+        } else {
+            docs.forEach(function(d) {
+                var div = document.createElement('div');
+                div.className = 'document-list-item';
+                div.innerHTML = '<span class="doc-name">' + escapeHtml(d.name) + '</span><span class="doc-meta"><span class="doc-date">' + escapeHtml((d.created_at || '').slice(0, 19)) + '</span> <button type="button" class="btn-delete" data-doc-id="' + escapeHtml(d.id) + '" title="Delete">Delete</button></span>';
+                documentList.appendChild(div);
+            });
+            documentList.querySelectorAll('.btn-delete').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var id = this.getAttribute('data-doc-id');
+                    if (!id || !confirm('Remove this document?')) return;
+                    fetch('/api/documents/' + encodeURIComponent(id), { method: 'DELETE' })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.success) loadDocuments();
+                        });
+                });
+            });
+        }
+    } catch (e) {
+        if (documentList) documentList.innerHTML = '<p class="document-list-empty">Could not load documents.</p>';
+    }
+}
+
 // File Upload Handling
 const fileInput = document.getElementById('fileInput');
 const fileList = document.getElementById('fileList');
 const uploadForm = document.getElementById('uploadForm');
 const uploadBtn = document.getElementById('uploadBtn');
 const uploadResult = document.getElementById('uploadResult');
+const uploadAction = document.getElementById('uploadAction');
 
 let selectedFiles = [];
 
@@ -15,7 +80,8 @@ fileInput.addEventListener('change', (e) => {
 function displayFileList() {
     fileList.innerHTML = '';
     if (selectedFiles.length === 0) {
-        fileList.innerHTML = '<p style="color: #999; text-align: center;">No files selected</p>';
+        fileList.innerHTML = '<p style="color: #999; text-align: center;">No files selected — choose files above, then use the button that appears to convert to schema.</p>';
+        if (uploadAction) uploadAction.style.display = 'none';
         return;
     }
     
@@ -28,6 +94,7 @@ function displayFileList() {
         `;
         fileList.appendChild(fileItem);
     });
+    if (uploadAction) uploadAction.style.display = 'block';
 }
 
 function formatFileSize(bytes) {
@@ -67,6 +134,13 @@ uploadForm.addEventListener('submit', async (e) => {
             selectedFiles = [];
             fileInput.value = '';
             displayFileList();
+            if (uploadAction) uploadAction.style.display = 'none';
+            await loadDocuments();
+            if (data.data && data.data.document_id) {
+                if (documentSelect) documentSelect.value = data.data.document_id;
+                var wd = document.getElementById('workflowDocumentSelect');
+                if (wd) wd.value = data.data.document_id;
+            }
         } else {
             showResult(uploadResult, 'error', data.error || 'Upload failed');
         }
@@ -94,13 +168,14 @@ queryForm.addEventListener('submit', async (e) => {
     setLoading(queryBtn, true);
     hideResult(queryResult);
     
+    const documentId = getSelectedDocumentId();
     try {
         const response = await fetch('/api/query-schema', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ query })
+            body: JSON.stringify({ query, document_id: documentId || undefined })
         });
         
         const data = await response.json();
@@ -133,11 +208,14 @@ nl2sqlForm.addEventListener('submit', async (e) => {
     
     const schemaHint = document.getElementById('schemaHint').value.trim();
     
+    const documentId = getSelectedDocumentId();
     setLoading(nl2sqlBtn, true);
     hideResult(nl2sqlResult);
+    const executeResultEl = document.getElementById('executeResult');
+    if (executeResultEl) { executeResultEl.className = 'result-message'; executeResultEl.innerHTML = ''; }
     
     try {
-        const requestBody = { query };
+        const requestBody = { query, document_id: documentId || undefined };
         if (schemaHint) {
             requestBody.schema_hint = schemaHint;
         }
@@ -154,6 +232,10 @@ nl2sqlForm.addEventListener('submit', async (e) => {
         
         if (data.success) {
             showResult(nl2sqlResult, 'success', 'Generated SQL:', data.data, true);
+            const sql = data.data?.sql || data.data?.data?.sql;
+            if (sql && typeof sql === 'string') {
+                renderRunSqlButton(nl2sqlResult, sql);
+            }
         } else {
             showResult(nl2sqlResult, 'error', data.error || 'SQL generation failed');
         }
@@ -230,9 +312,43 @@ function hideResult(element) {
 }
 
 function escapeHtml(text) {
+    if (text == null) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function renderRunSqlButton(container, sql) {
+    let wrap = container.querySelector('.run-sql-wrap');
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'run-sql-wrap';
+        container.appendChild(wrap);
+    }
+    wrap.innerHTML = '<button type="button" class="btn btn-secondary btn-run-sql">Run SQL</button>';
+    wrap.querySelector('button').onclick = () => executeSql(sql);
+}
+
+async function executeSql(sql) {
+    const el = document.getElementById('executeResult');
+    if (!el) return;
+    el.className = 'result-message show info';
+    el.innerHTML = '<strong>Running SQL…</strong>';
+    try {
+        const res = await fetch('/api/execute-sql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sql })
+        });
+        const data = await res.json();
+        el.className = 'result-message show ' + (data.success ? 'success' : 'error');
+        el.innerHTML = '<strong>' + (data.success ? 'Execution result' : 'Execution failed') + '</strong>' +
+            (data.data ? '<div class="result-content">' + escapeHtml(JSON.stringify(data.data, null, 2)) + '</div>' : '') +
+            (data.error ? '<p>' + escapeHtml(data.error) + '</p>' : '');
+    } catch (e) {
+        el.className = 'result-message show error';
+        el.innerHTML = '<strong>Error</strong><p>' + escapeHtml(e.message) + '</p>';
+    }
 }
 
 // Sequential Workflow Handling
@@ -245,6 +361,9 @@ const workflowProgress = document.getElementById('workflowProgress');
 
 let workflowFiles = [];
 
+const workflowUploadAction = document.getElementById('workflowUploadAction');
+const workflowConvertBtn = document.getElementById('workflowConvertBtn');
+
 workflowFileInput.addEventListener('change', (e) => {
     workflowFiles = Array.from(e.target.files);
     displayWorkflowFileList();
@@ -254,6 +373,7 @@ function displayWorkflowFileList() {
     workflowFileList.innerHTML = '';
     if (workflowFiles.length === 0) {
         workflowFileList.innerHTML = '<p style="color: #999; text-align: center;">No files selected (optional)</p>';
+        if (workflowUploadAction) workflowUploadAction.style.display = 'none';
         return;
     }
     
@@ -265,6 +385,41 @@ function displayWorkflowFileList() {
             <span class="file-item-size">${formatFileSize(file.size)}</span>
         `;
         workflowFileList.appendChild(fileItem);
+    });
+    if (workflowUploadAction) workflowUploadAction.style.display = 'block';
+}
+
+// Convert to Schema (Step 1 only) in workflow section
+if (workflowConvertBtn) {
+    workflowConvertBtn.addEventListener('click', async () => {
+        if (workflowFiles.length === 0) return;
+        const formData = new FormData();
+        workflowFiles.forEach(file => formData.append('files[]', file));
+        setLoading(workflowConvertBtn, true);
+        hideWorkflowResult();
+        try {
+            const response = await fetch('/api/upload-schema', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (data.success) {
+                showWorkflowResult('success', data.message, `<div class="result-content">${escapeHtml(JSON.stringify(data.data, null, 2))}</div>`);
+                workflowFiles = [];
+                workflowFileInput.value = '';
+                displayWorkflowFileList();
+                if (workflowUploadAction) workflowUploadAction.style.display = 'none';
+                loadDocuments();
+                if (data.data && data.data.document_id) {
+                    if (documentSelect) documentSelect.value = data.data.document_id;
+                    var wd = document.getElementById('workflowDocumentSelect');
+                    if (wd) wd.value = data.data.document_id;
+                }
+            } else {
+                showWorkflowResult('error', data.error || 'Convert failed');
+            }
+        } catch (err) {
+            showWorkflowResult('error', `Error: ${err.message}`);
+        } finally {
+            setLoading(workflowConvertBtn, false);
+        }
     });
 }
 
@@ -299,6 +454,8 @@ workflowForm.addEventListener('submit', async (e) => {
         if (query) jsonData.query = query;
         if (nl2sqlQuery) jsonData.nl2sql_query = nl2sqlQuery;
         if (schemaHint) jsonData.schema_hint = schemaHint;
+        const workflowDocId = document.getElementById('workflowDocumentSelect') && document.getElementById('workflowDocumentSelect').value;
+        if (workflowDocId) jsonData.document_id = workflowDocId;
         
         // Convert JSON to string and append
         formData.append('json_data', JSON.stringify(jsonData));
@@ -406,6 +563,29 @@ function updateWorkflowProgress(message) {
     }
 }
 
-// Initialize workflow file list display
+// Clear vector store (Documents tab)
+var clearVectorBtn = document.getElementById('clearVectorBtn');
+var clearVectorResult = document.getElementById('clearVectorResult');
+if (clearVectorBtn) {
+    clearVectorBtn.addEventListener('click', async function() {
+        if (!confirm('Clear all schema from the vector store? You can re-upload to repopulate.')) return;
+        clearVectorResult.className = 'result-message';
+        clearVectorResult.innerHTML = '';
+        clearVectorBtn.disabled = true;
+        try {
+            var res = await fetch('/api/clear-vector-store', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            var data = await res.json();
+            clearVectorResult.className = 'result-message show ' + (data.success ? 'success' : 'error');
+            clearVectorResult.innerHTML = '<strong>' + (data.success ? data.message || 'Vector store cleared.' : (data.error || 'Failed')) + '</strong>';
+        } catch (e) {
+            clearVectorResult.className = 'result-message show error';
+            clearVectorResult.innerHTML = '<strong>Error: ' + escapeHtml(e.message) + '</strong>';
+        }
+        clearVectorBtn.disabled = false;
+    });
+}
+
+// Initialize workflow file list and load documents
 displayWorkflowFileList();
+loadDocuments();
 

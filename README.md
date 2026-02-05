@@ -67,8 +67,8 @@ The application uses `python-dotenv` to load these variables automatically from 
 The application expects the following n8n webhook endpoints:
 
 1. **Files to Schema**: `/webhook/files-to-schema` (POST)
-   - Accepts multipart/form-data with files
-   - Processes and stores schema files in vector database
+   - App sends **JSON**: `{ "schema_txt": "<converted schema text>" }` (Content-Type: application/json)
+   - n8n workflow must accept JSON and pass `schema_txt` (or `body.schema_txt`) into the document loader → embed → vector store. First node after webhook: e.g. Code that returns `[{ json: { data: $json.body.schema_txt || $json.schema_txt } }]` and connect to the node that feeds the vector store.
 
 2. **Schema Query**: `/webhook/schema-query` (POST)
    - Accepts JSON with `query`, `sql`, or `text` field
@@ -84,7 +84,7 @@ The application expects the following n8n webhook endpoints:
 ### Upload Schema Files
 
 1. Click "Choose files" or drag and drop schema files
-2. Select one or more files (SQL, text, JSON, CSV, etc.)
+2. Select one or more files (any type: SQL, text, JSON, CSV, XLSX, etc.)
 3. Click "Upload to Vector Database"
 4. Wait for confirmation that files were processed
 
@@ -98,16 +98,17 @@ The application expects the following n8n webhook endpoints:
 3. Click "Search Schema"
 4. View the relevant schema information returned
 
-### Generate SQL from Natural Language
+### Give NL commands → SQL → Run (via n8n webhook)
 
-1. Enter a question that requires SQL
-2. Examples:
+1. **Upload** schema files first (so the vector store has your schema).
+2. Open the **Natural language → SQL → Run** section.
+3. (Optional) In **Your documents**, choose "Use document for Query & NL2SQL" if you want to scope by a specific upload.
+4. Type a **natural language command** in the text area, e.g.:
    - "Show me the total sales amount for today"
    - "Count the total number of active products"
-   - "Calculate weekly growth percentage"
-3. (Optional) Add a schema hint for better context
-4. Click "Generate SQL"
-5. Review the generated SQL query and execution status
+   - "List all orders by customer"
+5. Click **Generate SQL**. The app sends your text to the n8n `/webhook/nl2sql` endpoint, which uses the vector store + LLM to produce SQL and returns `status`, `sql`, and `can_execute`.
+6. Review the generated SQL. If you have set `N8N_EXECUTE_SQL_WEBHOOK` in `.env`, click **Run SQL** to execute the query through that webhook.
 
 ### Complete Sequential Workflow
 
@@ -240,7 +241,7 @@ If you get connection errors:
 ### File Upload Issues
 
 - Maximum file size: 16MB per file
-- Supported formats: SQL, TXT, MD, JSON, CSV
+- Supported formats: any (SQL, TXT, MD, JSON, CSV, XLSX, etc.)
 - Ensure files contain valid schema information
 
 ### Query Issues

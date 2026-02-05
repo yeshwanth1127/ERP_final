@@ -3,161 +3,170 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schema Vector Database - Query Interface</title>
+    <title>Schema Intelligence</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>📊 Schema Vector Database</h1>
-            <p class="subtitle">Upload your database schema files and query them using natural language</p>
-        </header>
+    <header class="navbar">
+        <div class="navbar-brand">Schema Intelligence</div>
+    </header>
 
-        <main>
-            <!-- Sequential Workflow Section -->
-            <section class="card workflow-section">
-                <h2>🚀 Complete Workflow (Sequential)</h2>
-                <p class="section-description">Run all three steps in sequence: Upload files → Query schema → Generate SQL. All steps will execute automatically one after another.</p>
-                
+    <div class="app-wrap">
+        <aside class="sidebar">
+            <nav class="tabs">
+                <button type="button" class="tab active" data-tab="documents">Documents</button>
+                <button type="button" class="tab" data-tab="upload">Upload</button>
+                <button type="button" class="tab" data-tab="workflow">Workflow</button>
+                <button type="button" class="tab" data-tab="query">Query</button>
+                <button type="button" class="tab" data-tab="nl2sql">NL → SQL</button>
+            </nav>
+        </aside>
+
+        <main class="content">
+            <section id="documents" class="tab-pane active">
+                <h2 class="pane-title">Documents</h2>
+                <p class="pane-desc">Select a document to use for Query and NL→SQL.</p>
+                <div class="document-select-row">
+                    <label for="documentSelect">Document</label>
+                    <select id="documentSelect" class="document-select">
+                        <option value="">— None —</option>
+                    </select>
+                </div>
+                <div id="documentList" class="document-list"></div>
+                <div class="clear-vector-row">
+                    <button type="button" class="btn btn-outline" id="clearVectorBtn">Clear vector store</button>
+                    <p class="input-hint">Removes all embedded schema from the vector DB. Re-upload to repopulate.</p>
+                </div>
+                <div id="clearVectorResult" class="result-message"></div>
+            </section>
+
+            <section id="upload" class="tab-pane">
+                <h2 class="pane-title">Upload</h2>
+                <p class="pane-desc">Upload files → converted to schema.txt and sent to vector store.</p>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="fileInput" name="files[]" multiple accept="*/*">
+                        <label for="fileInput" class="file-label">
+                            <span class="file-label-text">Choose files</span>
+                            <span class="file-label-button">Browse</span>
+                        </label>
+                    </div>
+                    <div id="fileList" class="file-list"></div>
+                    <div id="uploadAction" class="upload-action" style="display: none;">
+                        <button type="submit" class="btn btn-primary" id="uploadBtn">
+                            <span class="btn-text">Convert to Schema</span>
+                            <span class="btn-loader" style="display: none;">Converting…</span>
+                        </button>
+                    </div>
+                </form>
+                <div id="uploadResult" class="result-message"></div>
+            </section>
+
+            <section id="workflow" class="tab-pane">
+                <h2 class="pane-title">Workflow</h2>
+                <p class="pane-desc">Upload → Query → Generate SQL in one run.</p>
                 <form id="workflowForm" enctype="multipart/form-data">
+                    <div class="input-group workflow-doc-row">
+                        <label for="workflowDocumentSelect">Use uploaded document (optional)</label>
+                        <select id="workflowDocumentSelect" class="document-select">
+                            <option value="">— None —</option>
+                        </select>
+                        <p class="input-hint">Select a document from the Upload tab to use its schema for Query and NL→SQL steps.</p>
+                    </div>
                     <div class="workflow-step">
-                        <h3>Step 1: Upload Schema Files</h3>
+                        <h3>1. Files</h3>
                         <div class="file-input-wrapper">
-                            <input type="file" id="workflowFileInput" name="files[]" multiple accept=".sql,.txt,.md,.json,.csv">
+                            <input type="file" id="workflowFileInput" name="files[]" multiple accept="*/*">
                             <label for="workflowFileInput" class="file-label">
-                                <span class="file-label-text">Choose files or drag and drop</span>
+                                <span class="file-label-text">Choose files</span>
                                 <span class="file-label-button">Browse</span>
                             </label>
                         </div>
                         <div id="workflowFileList" class="file-list"></div>
+                        <div id="workflowUploadAction" class="upload-action" style="display: none;">
+                            <button type="button" class="btn btn-primary" id="workflowConvertBtn">
+                                <span class="btn-text">Convert to Schema</span>
+                                <span class="btn-loader" style="display: none;">Converting…</span>
+                            </button>
+                        </div>
                     </div>
-
                     <div class="workflow-step">
-                        <h3>Step 2: Query Schema</h3>
-                        <div class="input-group">
-                            <textarea 
-                                id="workflowQueryInput" 
-                                name="query" 
-                                placeholder="e.g., What tables are related to sales? Show me the product schema."
-                                rows="3"
-                            ></textarea>
-                        </div>
+                        <h3>2. Query</h3>
+                        <textarea id="workflowQueryInput" name="query" placeholder="e.g. What tables exist?" rows="2"></textarea>
                     </div>
-
                     <div class="workflow-step">
-                        <h3>Step 3: Generate SQL</h3>
-                        <div class="input-group">
-                            <textarea 
-                                id="workflowNL2SQLInput" 
-                                name="nl2sql_query" 
-                                placeholder="e.g., Show me the total sales amount for today. Count active products."
-                                rows="3"
-                            ></textarea>
-                        </div>
-                        <div class="input-group">
-                            <label for="workflowSchemaHint">Schema Hint (Optional):</label>
-                            <input 
-                                type="text" 
-                                id="workflowSchemaHint" 
-                                name="schema_hint" 
-                                placeholder="e.g., schema: retail_erp, main tables: sales, products"
-                            >
-                        </div>
+                        <h3>3. NL → SQL</h3>
+                        <textarea id="workflowNL2SQLInput" name="nl2sql_query" placeholder="e.g. Total sales today" rows="2"></textarea>
+                        <input type="text" id="workflowSchemaHint" name="schema_hint" placeholder="Schema hint (optional)" class="input-inline">
                     </div>
-
                     <button type="submit" class="btn btn-workflow" id="workflowBtn">
-                        <span class="btn-text">🚀 Run Complete Workflow</span>
-                        <span class="btn-loader" style="display: none;">⏳ Processing...</span>
+                        <span class="btn-text">Run workflow</span>
+                        <span class="btn-loader" style="display: none;">Processing…</span>
                     </button>
                 </form>
                 <div id="workflowResult" class="result-message"></div>
                 <div id="workflowProgress" class="workflow-progress"></div>
             </section>
 
-            <!-- Upload Section -->
-            <section class="card upload-section">
-                <h2>📁 Upload Schema Files</h2>
-                <p class="section-description">Upload your database schema files (SQL, text, or any format). They will be processed and stored in the vector database.</p>
-                
-                <form id="uploadForm" enctype="multipart/form-data">
-                    <div class="file-input-wrapper">
-                        <input type="file" id="fileInput" name="files[]" multiple accept=".sql,.txt,.md,.json,.csv">
-                        <label for="fileInput" class="file-label">
-                            <span class="file-label-text">Choose files or drag and drop</span>
-                            <span class="file-label-button">Browse</span>
-                        </label>
-                    </div>
-                    <div id="fileList" class="file-list"></div>
-                    <button type="submit" class="btn btn-primary" id="uploadBtn">
-                        <span class="btn-text">Upload to Vector Database</span>
-                        <span class="btn-loader" style="display: none;">⏳ Uploading...</span>
-                    </button>
-                </form>
-                <div id="uploadResult" class="result-message"></div>
-            </section>
-
-            <!-- Query Section -->
-            <section class="card query-section">
-                <h2>🔍 Query Schema</h2>
-                <p class="section-description">Ask questions about your database schema in natural language. The system will search the vector database for relevant schema information.</p>
-                
+            <section id="query" class="tab-pane">
+                <h2 class="pane-title">Query</h2>
+                <p class="pane-desc">Ask about your schema in natural language.</p>
                 <form id="queryForm">
                     <div class="input-group">
-                        <textarea 
-                            id="queryInput" 
-                            name="query" 
-                            placeholder="e.g., What tables are related to sales? Show me the product schema. What columns does the users table have?"
-                            rows="4"
-                            required
-                        ></textarea>
+                        <label for="queryInput">Question</label>
+                        <textarea id="queryInput" name="query" placeholder="e.g. What tables do I have?" rows="3" required></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary" id="queryBtn">
-                        <span class="btn-text">Search Schema</span>
-                        <span class="btn-loader" style="display: none;">🔍 Searching...</span>
+                        <span class="btn-text">Search</span>
+                        <span class="btn-loader" style="display: none;">Searching…</span>
                     </button>
                 </form>
                 <div id="queryResult" class="result-message"></div>
             </section>
 
-            <!-- NL2SQL Section -->
-            <section class="card nl2sql-section">
-                <h2>🤖 Natural Language to SQL</h2>
-                <p class="section-description">Ask questions in natural language and get SQL queries generated automatically based on your schema.</p>
-                
+            <section id="nl2sql" class="tab-pane">
+                <h2 class="pane-title">NL → SQL</h2>
+                <p class="pane-desc">Type what you want → SQL is generated. Use Run SQL to execute (if configured).</p>
                 <form id="nl2sqlForm">
                     <div class="input-group">
-                        <textarea 
-                            id="nl2sqlInput" 
-                            name="query" 
-                            placeholder="e.g., Show me the total sales amount for today. Count the total number of active products. Calculate weekly growth percentage."
-                            rows="4"
-                            required
-                        ></textarea>
+                        <label for="nl2sqlInput">Natural language</label>
+                        <textarea id="nl2sqlInput" name="query" placeholder="e.g. Show total sales for today" rows="3" required></textarea>
                     </div>
                     <div class="input-group">
-                        <label for="schemaHint">Schema Hint (Optional):</label>
-                        <input 
-                            type="text" 
-                            id="schemaHint" 
-                            name="schema_hint" 
-                            placeholder="e.g., schema: retail_erp, main tables: sales, products"
-                        >
+                        <label for="schemaHint">Schema hint (optional)</label>
+                        <input type="text" id="schemaHint" name="schema_hint" placeholder="e.g. tables: sales, products">
                     </div>
-                    <button type="submit" class="btn btn-secondary" id="nl2sqlBtn">
+                    <button type="submit" class="btn btn-primary" id="nl2sqlBtn">
                         <span class="btn-text">Generate SQL</span>
-                        <span class="btn-loader" style="display: none;">🤖 Generating...</span>
+                        <span class="btn-loader" style="display: none;">Generating…</span>
                     </button>
                 </form>
                 <div id="nl2sqlResult" class="result-message"></div>
+                <div id="executeResult" class="result-message"></div>
             </section>
         </main>
-
-        <footer>
-            <p>Schema Vector Database Query Interface</p>
-        </footer>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
+    {% if debug %}
+    <script>
+    (function() {
+        var lastStarted = null;
+        function check() {
+            fetch('/api/reload-check').then(function(r) { return r.json(); }).then(function(d) {
+                if (d.started != null) {
+                    if (lastStarted != null && d.started !== lastStarted) location.reload();
+                    lastStarted = d.started;
+                }
+            }).catch(function() {});
+        }
+        setInterval(check, 2000);
+        check();
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>
-
