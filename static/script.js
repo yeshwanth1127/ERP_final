@@ -7,6 +7,7 @@ document.querySelectorAll('.tab').forEach(function(btn) {
         this.classList.add('active');
         var pane = document.getElementById(tabId);
         if (pane) pane.classList.add('active');
+        if (tabId === 'dashboard') loadDashboard();
     });
 });
 
@@ -181,7 +182,7 @@ queryForm.addEventListener('submit', async (e) => {
         const data = await response.json();
         
         if (data.success) {
-            showResult(queryResult, 'success', 'Query Results:', data.data);
+            showSchemaQueryResult(queryResult, data.data);
         } else {
             showResult(queryResult, 'error', data.error || 'Query failed');
         }
@@ -260,6 +261,32 @@ function setLoading(button, isLoading) {
         btnText.style.display = 'inline';
         btnLoader.style.display = 'none';
     }
+}
+
+function showSchemaQueryResult(element, data) {
+    element.className = 'result-message show success';
+    const results = data && Array.isArray(data.results) ? data.results : [];
+    const count = data && typeof data.count === 'number' ? data.count : results.length;
+    let html = '<strong>Query Results</strong>';
+    if (results.length === 0) {
+        html += '<div class="result-content schema-results"><p class="schema-count">No matching schema found.</p></div>';
+    } else {
+        html += '<div class="result-content schema-results">';
+        html += '<p class="schema-count">Found ' + (count || results.length) + ' result(s).</p>';
+        results.forEach(function(r, i) {
+            const text = (r.content != null ? String(r.content) : '').trim();
+            const score = r.score != null ? Number(r.score) : null;
+            html += '<div class="schema-result-item">';
+            if (score !== null && !isNaN(score)) {
+                html += '<p class="schema-result-meta">Relevance: ' + (Math.round(score * 100) / 100) + '</p>';
+            }
+            html += '<pre class="schema-result-content">' + escapeHtml(text) + '</pre>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    element.innerHTML = html;
+    element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function showResult(element, type, message, data = null, isSQL = false) {
@@ -584,6 +611,98 @@ if (clearVectorBtn) {
         clearVectorBtn.disabled = false;
     });
 }
+
+// Dashboard: analytics KPIs and charts
+var chartRevenueInstance = null;
+var chartOrdersInstance = null;
+
+function getDashboardParams() {
+    var periodEl = document.getElementById('analyticsPeriod');
+    var metricEl = document.getElementById('analyticsMetric');
+    return {
+        period: periodEl ? periodEl.value : 'month',
+        metric: metricEl ? metricEl.value : 'revenue'
+    };
+}
+
+function formatNumber(x) {
+    if (typeof x !== 'number') return x;
+    if (x >= 1e6) return (x / 1e6).toFixed(1) + 'M';
+    if (x >= 1e3) return (x / 1e3).toFixed(1) + 'K';
+    return x.toLocaleString();
+}
+
+function renderDashboardCharts(revenueData, ordersData) {
+    var revenueCanvas = document.getElementById('chartRevenue');
+    var ordersCanvas = document.getElementById('chartOrders');
+    if (!revenueCanvas || !ordersCanvas) return;
+
+    var commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { maxRotation: 45 } },
+            y: { beginAtZero: true }
+        }
+    };
+
+    if (chartRevenueInstance) chartRevenueInstance.destroy();
+    chartRevenueInstance = new Chart(revenueCanvas, {
+        type: 'line',
+        data: {
+            labels: (revenueData.series || []).map(function(s) { return s.date; }),
+            datasets: [{ label: 'Revenue', data: (revenueData.series || []).map(function(s) { return s.value; }), borderColor: '#0d47a1', backgroundColor: 'rgba(13, 71, 161, 0.1)', fill: true }]
+        },
+        options: commonOptions
+    });
+
+    if (chartOrdersInstance) chartOrdersInstance.destroy();
+    chartOrdersInstance = new Chart(ordersCanvas, {
+        type: 'bar',
+        data: {
+            labels: (ordersData.series || []).map(function(s) { return s.date; }),
+            datasets: [{ label: 'Orders', data: (ordersData.series || []).map(function(s) { return s.value; }), backgroundColor: 'rgba(46, 125, 50, 0.7)' }]
+        },
+        options: commonOptions
+    });
+}
+
+function loadDashboard() {
+    var params = getDashboardParams();
+    var kpiRevenue = document.getElementById('kpiRevenue');
+    var kpiOrders = document.getElementById('kpiOrders');
+    var kpiRegion = document.getElementById('kpiRegion');
+    var errEl = document.getElementById('dashboardError');
+    if (errEl) { errEl.style.display = 'none'; errEl.innerHTML = ''; }
+
+    var url = '/api/analytics?period=' + encodeURIComponent(params.period) + '&metric=revenue';
+    fetch(url).then(function(r) { return r.json(); }).then(function(revenueData) {
+        var url2 = '/api/analytics?period=' + encodeURIComponent(params.period) + '&metric=orders';
+        return fetch(url2).then(function(r2) { return r2.json(); }).then(function(ordersData) {
+            var summary = revenueData.summary || {};
+            if (kpiRevenue) kpiRevenue.textContent = summary.totalRevenue != null ? '₹' + formatNumber(summary.totalRevenue) : '—';
+            if (kpiOrders) kpiOrders.textContent = (ordersData.summary && ordersData.summary.totalOrders != null) ? formatNumber(ordersData.summary.totalOrders) : '—';
+            if (kpiRegion) kpiRegion.textContent = summary.topRegion || '—';
+            renderDashboardCharts(revenueData, ordersData);
+        });
+    }).catch(function(e) {
+        if (errEl) {
+            errEl.className = 'result-message show error';
+            errEl.innerHTML = '<strong>Failed to load analytics</strong><p>' + escapeHtml(e.message) + '</p>';
+            errEl.style.display = 'block';
+        }
+    });
+}
+
+(function() {
+    var refreshBtn = document.getElementById('analyticsRefreshBtn');
+    var periodSel = document.getElementById('analyticsPeriod');
+    var metricSel = document.getElementById('analyticsMetric');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadDashboard);
+    if (periodSel) periodSel.addEventListener('change', loadDashboard);
+    if (metricSel) metricSel.addEventListener('change', loadDashboard);
+})();
 
 // Initialize workflow file list and load documents
 displayWorkflowFileList();

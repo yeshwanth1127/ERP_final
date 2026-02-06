@@ -17,6 +17,7 @@
     <div class="app-wrap">
         <aside class="sidebar">
             <nav class="tabs">
+                <button type="button" class="tab" data-tab="dashboard">Dashboard</button>
                 <button type="button" class="tab active" data-tab="documents">Documents</button>
                 <button type="button" class="tab" data-tab="upload">Upload</button>
                 <button type="button" class="tab" data-tab="workflow">Workflow</button>
@@ -26,6 +27,65 @@
         </aside>
 
         <main class="content">
+            <section id="dashboard" class="tab-pane dashboard-pane">
+                <header class="dashboard-header">
+                    <h2 class="pane-title">Dashboard</h2>
+                    <p class="pane-desc">Analytics from simulated ERP data. Change period to see different ranges.</p>
+                </header>
+                <div class="dashboard-controls">
+                    <div class="dashboard-control-group">
+                        <label for="analyticsPeriod">Period</label>
+                        <select id="analyticsPeriod" class="dashboard-select">
+                            <option value="week">Week</option>
+                            <option value="month" selected>Month</option>
+                            <option value="quarter">Quarter</option>
+                        </select>
+                    </div>
+                    <div class="dashboard-control-group">
+                        <label for="analyticsMetric">Metric</label>
+                        <select id="analyticsMetric" class="dashboard-select">
+                            <option value="revenue" selected>Revenue</option>
+                            <option value="orders">Orders</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-primary dashboard-refresh-btn" id="analyticsRefreshBtn">Refresh</button>
+                </div>
+                <section class="dashboard-section">
+                    <h3 class="dashboard-section-title">Key metrics</h3>
+                    <div id="dashboardKpis" class="dashboard-kpis">
+                        <div class="kpi-card">
+                            <span class="kpi-label">Total Revenue</span>
+                            <span id="kpiRevenue" class="kpi-value">—</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Total Orders</span>
+                            <span id="kpiOrders" class="kpi-value">—</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Top Region</span>
+                            <span id="kpiRegion" class="kpi-value">—</span>
+                        </div>
+                    </div>
+                </section>
+                <section class="dashboard-section">
+                    <h3 class="dashboard-section-title">Trends</h3>
+                    <div class="dashboard-charts">
+                        <div class="chart-wrap">
+                            <h4 class="chart-title">Revenue over time</h4>
+                            <div class="chart-container">
+                                <canvas id="chartRevenue"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-wrap">
+                            <h4 class="chart-title">Orders over time</h4>
+                            <div class="chart-container">
+                                <canvas id="chartOrders"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <div id="dashboardError" class="result-message dashboard-error" style="display: none;"></div>
+            </section>
             <section id="documents" class="tab-pane active">
                 <h2 class="pane-title">Documents</h2>
                 <p class="pane-desc">Select a document to use for Query and NL→SQL.</p>
@@ -150,6 +210,7 @@
         </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     {% if debug %}
     <script>

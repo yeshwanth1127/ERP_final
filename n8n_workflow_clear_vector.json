@@ -1,0 +1,44 @@
+{
+  "name": "Clear Vector Store",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clear-vector",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "webhook-clear-vector",
+      "name": "Webhook Clear Vector",
+      "webhookId": "clear-vector-rag-schema"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "TRUNCATE TABLE rag_schema_docs;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "id": "postgres-truncate",
+      "name": "Truncate rag_schema_docs",
+      "credentials": {
+        "postgres": {
+          "id": "IzZpjZvq5pT2JGEf",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Clear Vector": {
+      "main": [[{"node": "Truncate rag_schema_docs", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "meta": {}
+}
